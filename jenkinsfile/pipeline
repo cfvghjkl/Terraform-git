@@ -1,0 +1,47 @@
+pipeline {
+    parameters {
+        booleanParam(name: 'autoApprove', defaultValue: false, description: 'Automatically run apply after generating plan?')
+    }
+    environment {
+        ARM_SUBSCRIPTION_ID = credentials('ARM_SUBSCRIPTION_ID')
+        ARM_CLIENT_ID       = credentials('ARM_CLIENT_ID')
+        ARM_CLIENT_SECRET   = credentials('ARM_CLIENT_SECRET')
+        ARM_TENANT_ID       = credentials('ARM_TENANT_ID')
+    }
+    agent any
+    stages {
+        stage('checkout') {
+            steps {
+                script {
+                    git "https://github.com/cfvghjkl/Terraform-git.git"
+                }
+            }
+        }
+        stage('Plan') {
+            steps {
+                sh 'terraform init'
+                sh 'terraform plan -out tfplan'
+                sh 'terraform show -no-color tfplan > tfplan.txt'
+            }
+        }
+        stage('Approval') {
+            when {
+                not {
+                    equals expected: true, actual: params.autoApprove
+                }
+            }
+            steps {
+                script {
+                    def plan = readFile 'tfplan.txt'
+                    input message: "Do you want to apply the plan?",
+                          parameters: [text(name: 'Plan', description: 'Please review the plan', defaultValue: plan)]
+                }
+            }
+        }
+        stage('Apply') {
+            steps {
+                sh 'terraform apply -input=false tfplan'
+            }
+        }
+    }
+}
