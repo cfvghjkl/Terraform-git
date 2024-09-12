@@ -2,23 +2,65 @@ terraform {
   required_providers {
     azurerm = {
       source  = "hashicorp/azurerm"
-      version = "4.0.1"
+      version = "4.1.0"
     }
   }
 }
-provider azurerm {
+provider "azurerm" {
   features {}
 }
 
-resource "azurerm_resource_group" "resourcestorage" {
-  name     = "resource_storage"
+resource "azurerm_resource_group" "SV" {
+  name     = "sagarika-resources"
   location = "West Europe"
 }
 
-resource "azurerm_storage_account" "storage_pratice" {
-  name                     = "terraformstorageaccount11"
-  resource_group_name      = azurerm_resource_group.StorageApplication.name
-  location                 = azurerm_resource_group.StorageApplication.location
-  account_tier             = "Standard"
-  account_replication_type = "LRS"
+resource "azurerm_virtual_network" "vnet" {
+  name                = "sagarika-network"
+  address_space       = ["10.0.0.0/16"]
+  location            = azurerm_resource_group.SV.location
+  resource_group_name = azurerm_resource_group.SV.name
+}
+
+resource "azurerm_subnet" "subnet" {
+  name                 = "internal"
+  resource_group_name  = azurerm_resource_group.SV.name
+  virtual_network_name = azurerm_virtual_network.vnet.name
+  address_prefixes     = ["10.0.2.0/24"]
+}
+
+resource "azurerm_network_interface" "svinterface" {
+  name                = "sagarika-nic"
+  location            = azurerm_resource_group.SV.location
+  resource_group_name = azurerm_resource_group.SV.name
+
+  ip_configuration {
+    name                          = "internal"
+    subnet_id                     = azurerm_subnet.subnet.id
+    private_ip_address_allocation = "Dynamic"
+  }
+}
+
+resource "azurerm_windows_virtual_machine" "sagarika" {
+  name                = "machine"
+  resource_group_name = azurerm_resource_group.SV.name
+  location            = azurerm_resource_group.SV.location
+  size                = "Standard_F2"
+  admin_username      = "sagarika"
+  admin_password      = "Sagarika@123"
+  network_interface_ids = [
+    azurerm_network_interface.svinterface.id,
+  ]
+
+  os_disk {
+    caching              = "ReadWrite"
+    storage_account_type = "Standard_LRS"
+  }
+
+  source_image_reference {
+    publisher = "MicrosoftWindowsServer"
+    offer     = "WindowsServer"
+    sku       = "2016-Datacenter"
+    version   = "latest"
+  }
 }
